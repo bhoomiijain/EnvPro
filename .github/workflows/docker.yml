@@ -1,15 +1,45 @@
-name: Docker image
+name: Docker Image Build
 
 on:
   push:
+    branches: [ main, develop ]
   pull_request:
-  workflow_dispatch:
+    branches: [ main ]
+  workflow_dispatch:        # manual trigger from GitHub UI
 
 jobs:
   build:
+    name: 🐳 Build & Verify Docker Image
     runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
 
-      - name: Build container
+    steps:
+      # 1. Download the repo code onto the runner
+      - name: ⬇️ Checkout code
+        uses: actions/checkout@v4
+
+      # 2. Build the multi-stage Docker image using docker-compose
+      - name: 🐳 Build Docker image via Compose
         run: docker compose -f docker-compose.yaml build
+
+      # 3. Smoke-test: start the container and check it responds on port 80
+      - name: 🧪 Smoke-test container
+        run: |
+          docker compose up -d
+          echo "⏳ Waiting for Nginx to start..."
+          sleep 5
+          curl --fail http://localhost:8080 && echo "✅ App is responding!" || echo "❌ App did not respond"
+          docker compose down
+
+      # 4. Tag image for GitHub Container Registry (GHCR)
+      - name: 🏷️ Tag image
+        run: |
+          docker tag envpro-web:latest ghcr.io/${{ github.repository_owner }}/envpro:${{ github.sha }}
+          docker tag envpro-web:latest ghcr.io/${{ github.repository_owner }}/envpro:latest
+
+      # 5. Push to GHCR — only on pushes to main (not on PRs)
+      - name: 📤 Push to GitHub Container Registry
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        run: |
+          echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+          docker push ghcr.io/${{ github.repository_owner }}/envpro:${{ github.sha }}
+          docker push ghcr.io/${{ github.repository_owner }}/envpro:latest
