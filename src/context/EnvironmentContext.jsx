@@ -176,6 +176,7 @@ function makeToast(kind, message) {
 export function EnvironmentProvider({ children }) {
   const [state, dispatch] = useReducer(reducer, { environments: initialEnvironments, toasts: [] });
   const [logStream, setLogStream] = useState([]);
+  const [userRole, setUserRole] = useState('developer'); // 'developer' or 'admin'
 
   useEffect(() => {
     const t = setInterval(() => dispatch({ type: 'TICK_TIMERS' }), 1000);
@@ -283,6 +284,8 @@ export function EnvironmentProvider({ children }) {
     dismissToast,
     ttlPresets: TTL_PRESETS,
     deploymentHistory,
+    userRole,
+    setUserRole,
   };
 
   return <EnvironmentContext.Provider value={value}>{children}</EnvironmentContext.Provider>;

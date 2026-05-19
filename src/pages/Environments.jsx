@@ -32,7 +32,7 @@ function detectAnomalies(environments) {
 }
 
 export default function Environments() {
-  const { environments, stats, logs, createEnvironment } = useEnvironments();
+  const { environments, stats, logs, createEnvironment, userRole, destroyEnvironment } = useEnvironments();
   const [filter, setFilter] = useState('all');
   const [search, setSearch] = useState('');
   const [showCreate, setShowCreate] = useState(false);
@@ -57,6 +57,11 @@ export default function Environments() {
     setShowCreate(false);
   };
 
+  const handleBulkCleanup = () => {
+    const targets = environments.filter((e) => ['running', 'failed'].includes(e.status));
+    targets.forEach((e) => destroyEnvironment(e.id));
+  };
+
   return (
     <div style={{ maxWidth: 1400, margin: '0 auto' }}>
       <div className="section-header">
@@ -64,7 +69,14 @@ export default function Environments() {
           <h1 className="section-title"><span className="gradient-text">Parallel Environments</span></h1>
           <p className="env-subtitle">{stats.active} active, {stats.running} healthy, {stats.failed} failed</p>
         </div>
-        <button className="btn btn-primary" onClick={() => setShowCreate(true)}><Plus size={15} /> New Environment</button>
+        <div style={{ display: 'flex', gap: 10 }}>
+          {userRole === 'admin' && (
+            <button className="btn btn-danger" onClick={handleBulkCleanup} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              🗑️ Bulk Cleanup
+            </button>
+          )}
+          <button className="btn btn-primary" onClick={() => setShowCreate(true)}><Plus size={15} /> New Environment</button>
+        </div>
       </div>
 
       <AnimatePresence>
