@@ -136,6 +136,14 @@ case $COMMAND in
             print_warning ".env file already exists"
         fi
         ;;
+    push)
+        print_header "Building and Pushing to Docker Hub"
+        DOCKER_USERNAME=${2:-bhoomiijain}
+        PUSH_VERSION=${3:-latest}
+        print_info "Using Docker Hub username: $DOCKER_USERNAME"
+        print_info "Using version tag: $PUSH_VERSION"
+        ./build-push.sh "$DOCKER_USERNAME" "$PUSH_VERSION"
+        ;;
     help|--help|-h)
         print_header "Usage"
         echo "  ./docker.sh [COMMAND] [OPTIONS]"
@@ -151,6 +159,7 @@ case $COMMAND in
         echo "  rebuild       - Clean rebuild and restart everything"
         echo "  health        - Check health status of all services"
         echo "  env           - Initialize .env file"
+        echo "  push [USER] [VERSION] - Build and push to Docker Hub"
         echo "  help          - Show this help message"
         echo ""
         echo "Examples:"
@@ -158,6 +167,7 @@ case $COMMAND in
         echo "  ./docker.sh up             # Start stack"
         echo "  ./docker.sh logs backend   # View backend logs"
         echo "  ./docker.sh health         # Check service health"
+        echo "  ./docker.sh push bhoomiijain v1.0.0  # Push to Docker Hub"
         ;;
     *)
         print_error "Unknown command: $COMMAND\nRun './docker.sh help' for usage information"

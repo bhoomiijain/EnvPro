@@ -43,8 +43,9 @@ export default function EnvironmentCard({ env, onViewDetails }) {
           {cfg.pulse && <span className={`pulse-dot ${cfg.dot}`} />}
           {cfg.label}
         </span>
-        <span className="mono branch-pill">{env.branch}</span>
+        <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-primary)' }}>{env.name || env.id}</span>
       </div>
+      <div style={{ fontSize: 10, color: 'var(--text-muted)', marginBottom: 6 }} className="mono branch-pill">{env.branch} · {env.repository}</div>
 
       <div className="env-row">
         <span className="mono env-commit">#{env.commitId}</span>

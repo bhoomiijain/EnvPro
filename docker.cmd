@@ -135,6 +135,18 @@ if "%COMMAND%"=="env" (
     goto :eof
 )
 
+if "%COMMAND%"=="push" (
+    echo === Building and Pushing to Docker Hub ===
+    set USERNAME=%2
+    if "!USERNAME!"=="" set USERNAME=bhoomiijain
+    set VERSION=%3
+    if "!VERSION!"=="" set VERSION=latest
+    echo Using Docker Hub username: !USERNAME!
+    echo Using version tag: !VERSION!
+    call build-push.cmd !USERNAME! !VERSION!
+    goto :eof
+)
+
 if "%COMMAND%"=="help" (
     echo === EnvPro Docker Management ===
     echo.
@@ -151,6 +163,7 @@ if "%COMMAND%"=="help" (
     echo   rebuild     - Clean rebuild and restart everything
     echo   health      - Check health status of all services
     echo   env         - Initialize .env file
+    echo   push        - Build and push images to Docker Hub
     echo   help        - Show this help message
     echo.
     echo Examples:
@@ -158,6 +171,7 @@ if "%COMMAND%"=="help" (
     echo   docker.cmd up           # Start stack
     echo   docker.cmd logs backend # View backend logs
     echo   docker.cmd health       # Check service health
+    echo   docker.cmd push         # Push to Docker Hub
     echo.
     goto :eof
 )

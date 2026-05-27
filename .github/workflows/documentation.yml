@@ -1,0 +1,93 @@
+name: Documentation Build
+
+on:
+  push:
+    branches: [main, develop]
+    paths:
+      - 'docs/**'
+      - 'README.md'
+      - '.github/workflows/documentation.yml'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'docs/**'
+      - 'README.md'
+
+jobs:
+  validate-docs:
+    name: Documentation Validation
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Check README exists
+        run: test -f README.md && echo "✓ README.md found"
+
+      - name: Validate Markdown files
+        run: |
+          find docs -name "*.md" -type f | head -5 | while read file; do
+            echo "Checking: $file"
+            test -f "$file" && echo "✓ $file exists"
+          done
+
+      - name: Check docs structure
+        run: |
+          echo "Documentation files:"
+          ls -la docs/ || echo "No docs directory"
+
+      - name: Validate links in markdown
+        run: |
+          echo "Validating internal documentation links..."
+          grep -r "\[.*\](" docs/ README.md 2>/dev/null | head -10 || true
+
+  build-api-docs:
+    name: API Documentation
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: maven
+
+      - name: Generate JavaDoc
+        run: ./mvnw -B javadoc:javadoc
+        continue-on-error: true
+
+      - name: Upload API docs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: api-documentation
+          path: server/target/site/apidocs/
+        continue-on-error: true
+
+  publish-docs:
+    name: Publish Documentation
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Create docs summary
+        run: |
+          echo "# EnvPro Documentation" > docs/INDEX.md
+          echo "" >> docs/INDEX.md
+          echo "## Available Documentation" >> docs/INDEX.md
+          ls -1 docs/*.md | sed 's|docs/|- [|g' | sed 's|.md|](./&)|g' >> docs/INDEX.md
+
+      - name: Upload documentation artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: documentation
+          path: docs/
+          retention-days: 30

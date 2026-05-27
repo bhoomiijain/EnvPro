@@ -20,9 +20,20 @@
     <node.version>v20.18.0</node.version>
     <frontend-maven-plugin.version>1.15.1</frontend-maven-plugin.version>
     <maven-clean-plugin.version>3.4.0</maven-clean-plugin.version>
+    <!-- Set true when npm ci was already run (GitHub Actions) -->
+    <skip.npm.deps>false</skip.npm.deps>
   </properties>
 
   <build>
+    <pluginManagement>
+      <plugins>
+        <plugin>
+          <groupId>org.apache.maven.plugins</groupId>
+          <artifactId>maven-surefire-plugin</artifactId>
+          <version>3.2.5</version>
+        </plugin>
+      </plugins>
+    </pluginManagement>
     <plugins>
       <plugin>
         <groupId>org.apache.maven.plugins</groupId>
@@ -53,12 +64,14 @@
             </goals>
           </execution>
           <execution>
-            <id>npm-ci</id>
+            <id>npm-install-deps</id>
             <goals>
               <goal>npm</goal>
             </goals>
             <configuration>
-              <arguments>ci</arguments>
+              <skip>${skip.npm.deps}</skip>
+              <!-- npm install (not ci) avoids wiping node_modules/.vite on Windows when dev server locked files -->
+              <arguments>install --no-audit --no-fund</arguments>
             </configuration>
           </execution>
           <execution>
