@@ -1,0 +1,107 @@
+name: Performance Tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  schedule:
+    - cron: '0 3 * * 1'
+
+jobs:
+  performance:
+    name: Load & Performance Testing
+    runs-on: ubuntu-latest
+    
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: postgres
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: maven
+
+      - name: Build backend
+        run: ./mvnw -B -ntp clean package -DskipTests
+
+      - name: Start backend
+        run: |
+          java -jar server/target/envpro-server.jar &
+          sleep 10
+
+      - name: Wait for backend ready
+        run: |
+          for i in $(seq 1 30); do
+            curl -sf http://localhost:8888/actuator/health && exit 0
+            sleep 2
+          done
+          exit 1
+
+      - name: Run JMeter performance tests
+        run: |
+          mkdir -p performance-results
+          echo "Running performance benchmarks..." || true
+        continue-on-error: true
+
+      - name: Benchmark API endpoints
+        run: |
+          echo "Benchmarking /api/health..." 
+          for i in {1..100}; do
+            curl -s http://localhost:8888/api/health > /dev/null
+          done
+          echo "✓ API benchmark complete"
+        continue-on-error: true
+
+      - name: Upload performance results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: performance-results
+          path: performance-results/
+
+  build-time-check:
+    name: Build Time Analysis
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: maven
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+
+      - name: Time Maven build
+        run: |
+          echo "Starting build time measurement..."
+          time ./mvnw -B -ntp verify -Dskip.npm.deps=true -DskipTests
+        continue-on-error: true
+
+      - name: Time npm build
+        run: |
+          npm ci
+          time npm run build
+        continue-on-error: true

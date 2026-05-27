@@ -1,8 +1,78 @@
+version: '3.8'
+
 services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: envpro-db
+    environment:
+      POSTGRES_USER: envpro_user
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-envpro_secure_password}
+      POSTGRES_DB: envpro_db
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U envpro_user -d envpro_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+    networks:
+      - envpro-network
+
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile.backend
+    container_name: envpro-api
+    environment:
+      SERVER_PORT: 8888
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/envpro_db
+      SPRING_DATASOURCE_USERNAME: envpro_user
+      SPRING_DATASOURCE_PASSWORD: ${DB_PASSWORD:-envpro_secure_password}
+      SPRING_JPA_HIBERNATE_DDL_AUTO: validate
+      JAVA_OPTS: -Xmx512m -Xms256m
+    ports:
+      - "8888:8888"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8888/actuator/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 60s
+    restart: unless-stopped
+    networks:
+      - envpro-network
+
   web:
     build:
       context: .
       dockerfile: Dockerfile
+    image: envpro-web:latest
+    container_name: envpro-web
     ports:
-      - "8080:80"
+      - "8081:80"
+    depends_on:
+      backend:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:80/"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
     restart: unless-stopped
+    networks:
+      - envpro-network
+
+networks:
+  envpro-network:
+    driver: bridge
+
+volumes:
+  postgres_data:
+    driver: local

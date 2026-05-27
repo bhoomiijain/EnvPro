@@ -1,0 +1,29 @@
+# syntax=docker/dockerfile:1
+
+# Stage 1: Build Spring Boot API with Maven
+FROM maven:3.9.11-eclipse-temurin-21-alpine AS backend-build
+WORKDIR /build
+
+COPY server/pom.xml ./pom.xml
+RUN mvn -B -ntp dependency:go-offline
+
+COPY server/src ./src
+RUN mvn -B -ntp clean package -DskipTests
+
+# Stage 2: Runtime
+FROM eclipse-temurin:21-jre-alpine
+WORKDIR /app
+
+LABEL maintainer="EnvPro Team"
+LABEL description="EnvPro Spring Boot API"
+
+COPY --from=backend-build /build/target/envpro-server.jar app.jar
+
+EXPOSE 8888
+
+ENV JAVA_OPTS="-Xmx512m -Xms256m"
+
+HEALTHCHECK --interval=30s --timeout=5s --start-period=40s --retries=3 \
+  CMD wget -qO- http://localhost:8888/actuator/health || exit 1
+
+ENTRYPOINT ["sh", "-c", "java $JAVA_OPTS -jar /app/app.jar"]

@@ -1,7 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { motion } from 'framer-motion';
-import { CheckCircle2, XCircle, Clock, Loader, MinusCircle, ChevronRight, Zap } from 'lucide-react';
-import { pipelineRuns } from '../data/mockData';
+import { CheckCircle2, XCircle, Clock, Loader, MinusCircle, ChevronRight } from 'lucide-react';
+import { useEnvironments } from '../context/EnvironmentContext';
+import { generateDeploymentInsights } from '../utils/envInsights';
 
 const STAGE_CFG = {
   success: { color: '#00ff88', bg: 'rgba(0,255,136,0.12)', icon: CheckCircle2 },
@@ -23,15 +24,14 @@ function PipelineStage({ stage, index, isLast }) {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', position: 'relative', flex: 1 }}>
-      {/* Connector line */}
       {!isLast && (
         <div style={{
           position: 'absolute', top: 28, left: '50%', width: '100%', height: 2,
-          background: '#1a2238',
-          zIndex: 0,
+          background: '#1a2238', zIndex: 0,
         }}>
-          <svg width="100%" height="4" style={{ position:'absolute', top:-1 }}>
-            <line x1="0" y1="2" x2="100%" y2="2"
+          <svg width="100%" height="4" style={{ position: 'absolute', top: -1 }}>
+            <line
+              x1="0" y1="2" x2="100%" y2="2"
               stroke={cfg.color}
               strokeWidth="2"
               strokeDasharray={stage.status === 'pending' || stage.status === 'skipped' ? '6 4' : 'none'}
@@ -42,7 +42,6 @@ function PipelineStage({ stage, index, isLast }) {
         </div>
       )}
 
-      {/* Node */}
       <motion.div
         initial={{ scale: 0, opacity: 0 }}
         animate={{ scale: 1, opacity: 1 }}
@@ -69,16 +68,13 @@ function PipelineStage({ stage, index, isLast }) {
         )}
       </motion.div>
 
-      {/* Label + status */}
       <motion.div
         initial={{ opacity: 0, y: 6 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: index * 0.12 + 0.1 }}
         style={{ marginTop: 12, textAlign: 'center' }}
       >
-        <div style={{ fontSize: 12, fontWeight: 600, color: cfg.color, marginBottom: 3 }}>
-          {stage.name}
-        </div>
+        <div style={{ fontSize: 12, fontWeight: 600, color: cfg.color, marginBottom: 3 }}>{stage.name}</div>
         <div style={{
           fontSize: 10, color: 'var(--text-muted)',
           background: cfg.bg, border: `1px solid ${cfg.color}40`,
@@ -97,46 +93,65 @@ function PipelineStage({ stage, index, isLast }) {
 }
 
 function PipelineRun({ run, isActive, onClick }) {
-  const overallStatus = run.stages.some(s => s.status === 'failed') ? 'failed'
-    : run.stages.some(s => s.status === 'running') ? 'running'
-    : run.stages.every(s => s.status === 'success') ? 'success'
+  const overallStatus = run.stages.some((s) => s.status === 'failed') ? 'failed'
+    : run.stages.some((s) => s.status === 'running') ? 'running'
+    : run.stages.every((s) => s.status === 'success') ? 'success'
     : 'pending';
 
   const colors = { success: '#00ff88', running: '#4f9eff', failed: '#ff4d6d', pending: '#4a5568' };
   const c = colors[overallStatus];
 
   return (
-    <div
+    <button
+      type="button"
       onClick={onClick}
       style={{
-        padding: '12px 16px', borderRadius: 10, cursor: 'pointer',
+        width: '100%', textAlign: 'left', padding: '12px 16px', borderRadius: 10, cursor: 'pointer',
         background: isActive ? 'rgba(79,158,255,0.1)' : 'rgba(255,255,255,0.03)',
         border: `1px solid ${isActive ? 'var(--border-accent)' : 'var(--border-subtle)'}`,
-        marginBottom: 8, transition: 'all 0.2s',
+        marginBottom: 8, transition: 'all 0.2s', color: 'inherit',
       }}
     >
       <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
         <div style={{ width: 8, height: 8, borderRadius: '50%', background: c, boxShadow: `0 0 6px ${c}` }} />
         <div style={{ flex: 1 }}>
           <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-primary)' }}>{run.branch}</div>
-          <div className="mono" style={{ fontSize: 10, color: 'var(--text-muted)' }}>#{run.commitId}</div>
+          <div className="mono" style={{ fontSize: 10, color: 'var(--text-muted)' }}>
+            {run.envId} · #{run.commitId}
+          </div>
         </div>
         <div style={{ fontSize: 10, color: 'var(--text-muted)' }}>
           {Math.round((Date.now() - new Date(run.triggeredAt)) / 60000)}m ago
         </div>
         <ChevronRight size={14} color="var(--text-muted)" />
       </div>
-    </div>
+    </button>
   );
 }
 
 export default function Pipeline() {
+  const { pipelineRuns, environments } = useEnvironments();
   const [activeRun, setActiveRun] = useState(0);
-  const run = pipelineRuns[activeRun];
+  const runs = pipelineRuns.length ? pipelineRuns : [];
+  const safeIndex = Math.min(activeRun, Math.max(0, runs.length - 1));
+  const run = runs[safeIndex];
+  const insights = useMemo(() => generateDeploymentInsights(environments), [environments]);
 
-  // Total pipeline duration
+  if (!run) {
+    return (
+      <div style={{ maxWidth: 1400, margin: '0 auto' }}>
+        <h1 className="section-title"><span className="gradient-text">CI/CD Pipeline</span></h1>
+        <p className="env-subtitle">Create an environment to start a pipeline run.</p>
+        <div className="glass-card" style={{ marginTop: 20, padding: 24, textAlign: 'center' }}>
+          <p style={{ fontSize: 13, color: 'var(--text-muted)' }}>No pipeline runs yet. Provision an environment from the Environments page.</p>
+        </div>
+      </div>
+    );
+  }
+
   const totalDuration = run.stages.reduce((s, st) => s + (st.duration || 0), 0);
-  const successStages = run.stages.filter(s => s.status === 'success').length;
+  const successStages = run.stages.filter((s) => s.status === 'success').length;
+  const linkedEnv = environments.find((e) => e.id === run.envId);
 
   return (
     <div style={{ maxWidth: 1400, margin: '0 auto' }}>
@@ -145,21 +160,20 @@ export default function Pipeline() {
           <span className="gradient-text">CI/CD Pipeline</span>
         </h1>
         <p style={{ fontSize: 13, color: 'var(--text-secondary)' }}>
-          GitHub Push → Maven Build → Test → Docker Build → Deploy Environment → Preview → Cleanup
+          GitHub Push → Maven Build → Test → Docker Build → Deploy → Preview → Cleanup
+          {linkedEnv && <span> · linked to <strong>{linkedEnv.name || linkedEnv.id}</strong></span>}
         </p>
       </motion.div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '280px 1fr', gap: 20 }}>
-        {/* Run list */}
+      <div className="pipeline-page-grid">
         <div>
           <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', letterSpacing: 1, marginBottom: 12, textTransform: 'uppercase' }}>
-            Recent Runs
+            Pipeline runs ({runs.length})
           </div>
-          {pipelineRuns.map((r, i) => (
-            <PipelineRun key={r.id} run={r} isActive={i === activeRun} onClick={() => setActiveRun(i)} />
+          {runs.map((r, i) => (
+            <PipelineRun key={r.id} run={r} isActive={i === safeIndex} onClick={() => setActiveRun(i)} />
           ))}
 
-          {/* AI Insight */}
           <motion.div
             initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.4 }}
             className="glass-card"
@@ -169,12 +183,11 @@ export default function Pipeline() {
               <span style={{ fontSize: 16 }}>🤖</span>
               <span style={{ fontSize: 12, fontWeight: 600, color: '#a78bfa' }}>AI Insights</span>
             </div>
-            {[
-              { icon: '⚠️', text: 'AuthControllerTest flaky — 73% pass rate', color: '#ffd166' },
-              { icon: '🚀', text: 'Maven build avg: 68s. Suggest layer cache', color: '#4f9eff' },
-              { icon: '🗑', text: '3 envs idle >2h. Smart cleanup available', color: '#00ff88' },
-            ].map((item, i) => (
-              <div key={i} style={{ display: 'flex', gap: 8, marginBottom: 10, fontSize: 11.5 }}>
+            {insights.length === 0 && (
+              <p style={{ fontSize: 11, color: 'var(--text-muted)' }}>Pipelines healthy — no anomalies detected.</p>
+            )}
+            {insights.map((item) => (
+              <div key={item.type} style={{ display: 'flex', gap: 8, marginBottom: 10, fontSize: 11.5 }}>
                 <span>{item.icon}</span>
                 <span style={{ color: item.color }}>{item.text}</span>
               </div>
@@ -182,19 +195,17 @@ export default function Pipeline() {
           </motion.div>
         </div>
 
-        {/* Main pipeline visualization */}
         <div>
           <motion.div className="glass-card" style={{ padding: 28, marginBottom: 20 }}
             initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}>
-            {/* Run header */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 32 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 32, flexWrap: 'wrap' }}>
               <div style={{ flex: 1 }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
                   <span className="branch-pill">⎇ {run.branch}</span>
                   <span className="mono" style={{ fontSize: 12, color: 'var(--accent-blue)' }}>#{run.commitId}</span>
-                  <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>
-                    · {Math.round((Date.now() - new Date(run.triggeredAt)) / 60000)}m ago
-                  </span>
+                  {run.repository && (
+                    <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{run.repository}</span>
+                  )}
                 </div>
               </div>
               <div style={{ display: 'flex', gap: 16 }}>
@@ -209,24 +220,20 @@ export default function Pipeline() {
               </div>
             </div>
 
-            {/* Stages */}
-            <div style={{ display: 'flex', alignItems: 'flex-start', gap: 0, padding: '8px 0' }}>
+            <div style={{ display: 'flex', alignItems: 'flex-start', gap: 0, padding: '8px 0', overflowX: 'auto' }}>
               {run.stages.map((stage, i) => (
-                <PipelineStage key={i} stage={stage} index={i} isLast={i === run.stages.length - 1} />
+                <PipelineStage key={stage.name} stage={stage} index={i} isLast={i === run.stages.length - 1} />
               ))}
             </div>
           </motion.div>
 
-          {/* Stage detail table */}
           <motion.div className="glass-card" style={{ padding: 20 }}
             initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.35 }}>
-            <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 14, color: 'var(--text-primary)' }}>
-              Stage Details
-            </div>
+            <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 14, color: 'var(--text-primary)' }}>Stage Details</div>
             <table style={{ width: '100%', borderCollapse: 'collapse' }}>
               <thead>
                 <tr>
-                  {['Stage', 'Status', 'Duration', 'Output'].map(h => (
+                  {['Stage', 'Status', 'Duration', 'Output'].map((h) => (
                     <th key={h} style={{ textAlign: 'left', fontSize: 10, color: 'var(--text-muted)', fontWeight: 600, letterSpacing: 0.8, textTransform: 'uppercase', paddingBottom: 10, borderBottom: '1px solid var(--border-subtle)' }}>
                       {h}
                     </th>
@@ -234,17 +241,21 @@ export default function Pipeline() {
                 </tr>
               </thead>
               <tbody>
-                {run.stages.map((s, i) => {
+                {run.stages.map((s) => {
                   const cfg = STAGE_CFG[s.status] || STAGE_CFG.pending;
+                  const previewUrl = linkedEnv?.preview_url || `http://localhost:${linkedEnv?.port || '----'}`;
                   const outputs = {
-                    'GitHub Push': 'Workflow triggered', 'Maven Build': 'BUILD SUCCESS (142 files)',
-                    'Unit Tests': s.status === 'failed' ? '❌ 3 tests failed' : '✅ 48 tests passed',
-                    'Docker Build': 'Image: 248.7MB', 'Deploy Env': 'Port 4821 assigned',
-                    'Preview': 'http://localhost:4821', 'Cleanup': 'Containers removed',
+                    'GitHub Push': 'Workflow triggered',
+                    'Maven Build': 'BUILD SUCCESS',
+                    'Unit Tests': s.status === 'failed' ? 'Tests failed' : 'All tests passed',
+                    'Docker Build': linkedEnv?.imageSize ? `Image: ${linkedEnv.imageSize}` : 'Image built',
+                    'Deploy Env': linkedEnv ? `Port ${linkedEnv.port}` : 'Deploying',
+                    Preview: previewUrl,
+                    Cleanup: 'Scheduled after TTL',
                   };
                   return (
-                    <tr key={i} style={{ borderBottom: '1px solid var(--border-subtle)' }}>
-                      <td style={{ padding: '10px 0', fontSize: 12, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <tr key={s.name} style={{ borderBottom: '1px solid var(--border-subtle)' }}>
+                      <td style={{ padding: '10px 0', fontSize: 12, color: 'var(--text-primary)' }}>
                         {STAGE_ICONS[s.name]} {s.name}
                       </td>
                       <td style={{ padding: '10px 12px' }}>

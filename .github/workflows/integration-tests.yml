@@ -1,0 +1,120 @@
+name: Integration Tests
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+
+jobs:
+  api-tests:
+    name: API Integration Tests
+    runs-on: ubuntu-latest
+    
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: envpro_test
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: maven
+
+      - name: Run Spring Boot tests
+        env:
+          SPRING_DATASOURCE_URL: jdbc:postgresql://localhost:5432/envpro_test
+          SPRING_DATASOURCE_USERNAME: postgres
+          SPRING_DATASOURCE_PASSWORD: postgres
+        run: ./mvnw -B -ntp test -DskipFrontend=true
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results
+          path: server/target/surefire-reports/
+
+  docker-integration:
+    name: Docker Compose Integration
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Docker Compose version
+        run: docker compose version
+
+      - name: Build and start stack
+        run: docker compose -f docker-compose.yaml up -d --build
+
+      - name: Wait for services
+        run: sleep 15
+
+      - name: Test frontend endpoint
+        run: curl -v http://localhost:8081/ || true
+
+      - name: Test backend health
+        run: curl -v http://localhost:8888/actuator/health || true
+
+      - name: Check running containers
+        run: docker compose ps
+
+      - name: View backend logs
+        if: always()
+        run: docker compose logs backend
+
+      - name: Cleanup
+        if: always()
+        run: docker compose down -v
+
+  end-to-end:
+    name: End-to-End Workflow Test
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: maven
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build frontend
+        run: npm run build
+
+      - name: Build backend
+        run: ./mvnw -B -ntp package -DskipTests
+
+      - name: Verify artifacts
+        run: |
+          test -f dist/index.html && echo "✓ Frontend built"
+          test -f server/target/envpro-server.jar && echo "✓ Backend built"

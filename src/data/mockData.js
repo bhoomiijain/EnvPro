@@ -36,6 +36,89 @@ const randFrom = (arr) => arr[Math.floor(Math.random() * arr.length)];
 
 const now = Date.now();
 
+export const PIPELINE_STAGE_NAMES = [
+  'GitHub Push',
+  'Maven Build',
+  'Unit Tests',
+  'Docker Build',
+  'Deploy Env',
+  'Preview',
+  'Cleanup',
+];
+
+export function createPipelineStages(statusMap = {}) {
+  return PIPELINE_STAGE_NAMES.map((name) => ({
+    name,
+    status: statusMap[name] || 'pending',
+    duration: statusMap[name] === 'success' ? randBetween(5, 90) : statusMap[name] === 'failed' ? randBetween(20, 60) : null,
+  }));
+}
+
+export function createPipelineRun({ envId, commitId, branch, repository, triggeredAt, stages }) {
+  return {
+    id: `run-${envId || Date.now()}`,
+    envId,
+    commitId,
+    branch,
+    repository,
+    triggeredAt: triggeredAt || new Date().toISOString(),
+    stages: stages || createPipelineStages(),
+  };
+}
+
+const REPO_COMMIT_POOL = COMMIT_MESSAGES.map((message, i) => ({
+  id: genCommit(),
+  message,
+  author: AUTHORS[i % AUTHORS.length],
+  timestamp: new Date(now - i * 45 * 60_000).toISOString(),
+}));
+
+/** Synthetic commit history for a newly connected repository */
+export function buildCommitsForRepo(branches) {
+  const list = branches?.length ? branches : ['main'];
+  return REPO_COMMIT_POOL.slice(0, 8).map((c, i) => ({
+    ...c,
+    id: genCommit(),
+    branch: list[i % list.length],
+  }));
+}
+
+export const REPOSITORIES = [
+  {
+    id: 'repo-envpro',
+    name: 'EnvPro',
+    fullName: 'bhoomiijain/EnvPro',
+    description: 'Dynamic ephemeral environment provisioning platform',
+    defaultBranch: 'main',
+    branches: ['main', 'feature/auth-v2', 'feature/dashboard-ui', 'release/v2.1'],
+    stars: 128,
+    language: 'Java',
+    commits: REPO_COMMIT_POOL.map((c, i) => ({ ...c, branch: ['main', 'feature/auth-v2', 'feature/dashboard-ui', 'release/v2.1'][i % 4] })),
+  },
+  {
+    id: 'repo-api-gateway',
+    name: 'api-gateway',
+    fullName: 'bhoomiijain/api-gateway',
+    description: 'Spring Cloud gateway for microservices routing',
+    defaultBranch: 'main',
+    branches: ['main', 'fix/memory-leak', 'hotfix/sql-injection'],
+    stars: 64,
+    language: 'Java',
+    commits: REPO_COMMIT_POOL.slice(3).map((c, i) => ({ ...c, branch: ['main', 'fix/memory-leak', 'hotfix/sql-injection'][i % 3] })),
+  },
+  {
+    id: 'repo-frontend',
+    name: 'envpro-ui',
+    fullName: 'bhoomiijain/envpro-ui',
+    description: 'React DevOps dashboard and orchestration UI',
+    defaultBranch: 'main',
+    branches: ['main', 'feature/ai-insights', 'dev/docker-orchestration'],
+    stars: 42,
+    language: 'TypeScript',
+    commits: REPO_COMMIT_POOL.slice(6).map((c, i) => ({ ...c, branch: ['main', 'feature/ai-insights', 'dev/docker-orchestration'][i % 3] })),
+  },
+];
+
 function buildRevisions(commitId) {
   const prev = genCommit();
   return [
@@ -58,6 +141,9 @@ export function generateEnvironment(overrides = {}) {
 
   const env = {
     id: genId(),
+    name: overrides.name || `preview-${branch.replace(/[^a-z0-9]/gi, '-').toLowerCase()}`,
+    repository: overrides.repository || 'bhoomiijain/EnvPro',
+    deployConfig: overrides.deployConfig || { replicas: 1, memory: '512Mi', profile: 'standard' },
     commitId,
     commitMsg: randFrom(COMMIT_MESSAGES),
     branch,
@@ -116,36 +202,36 @@ export const recentCommits = Array.from({ length: 18 }, (_, i) => ({
 }));
 
 export const pipelineRuns = [
-  {
-    id: 'run-001',
+  createPipelineRun({
+    envId: 'env-0001',
     commitId: genCommit(),
     branch: 'main',
+    repository: 'bhoomiijain/EnvPro',
     triggeredAt: new Date(now - 5 * 60_000).toISOString(),
-    stages: [
-      { name: 'GitHub Push', status: 'success', duration: 0 },
-      { name: 'Maven Build', status: 'success', duration: 64 },
-      { name: 'Unit Tests', status: 'success', duration: 38 },
-      { name: 'Docker Build', status: 'success', duration: 22 },
-      { name: 'Deploy Env', status: 'running', duration: null },
-      { name: 'Preview', status: 'pending', duration: null },
-      { name: 'Cleanup', status: 'pending', duration: null },
-    ],
-  },
-  {
-    id: 'run-002',
+    stages: createPipelineStages({
+      'GitHub Push': 'success',
+      'Maven Build': 'success',
+      'Unit Tests': 'success',
+      'Docker Build': 'success',
+      'Deploy Env': 'running',
+    }),
+  }),
+  createPipelineRun({
+    envId: 'env-0002',
     commitId: genCommit(),
     branch: 'feature/auth-v2',
+    repository: 'bhoomiijain/EnvPro',
     triggeredAt: new Date(now - 22 * 60_000).toISOString(),
-    stages: [
-      { name: 'GitHub Push', status: 'success', duration: 0 },
-      { name: 'Maven Build', status: 'success', duration: 71 },
-      { name: 'Unit Tests', status: 'failed', duration: 45 },
-      { name: 'Docker Build', status: 'skipped', duration: null },
-      { name: 'Deploy Env', status: 'skipped', duration: null },
-      { name: 'Preview', status: 'skipped', duration: null },
-      { name: 'Cleanup', status: 'skipped', duration: null },
-    ],
-  },
+    stages: createPipelineStages({
+      'GitHub Push': 'success',
+      'Maven Build': 'success',
+      'Unit Tests': 'failed',
+      'Docker Build': 'skipped',
+      'Deploy Env': 'skipped',
+      'Preview': 'skipped',
+      'Cleanup': 'skipped',
+    }),
+  }),
 ];
 
 export const analyticsData = Array.from({ length: 14 }, (_, i) => ({

@@ -4,7 +4,8 @@ import { Plus, Search, GitBranch, AlertCircle } from 'lucide-react';
 import { useEnvironments } from '../context/EnvironmentContext';
 import EnvironmentCard from '../components/EnvironmentCard';
 import EnvironmentDetailsModal from '../components/EnvironmentDetailsModal';
-import { BRANCHES } from '../data/mockData';
+import { useRepo } from '../context/RepoContext';
+import { useSearchParams, useNavigate } from 'react-router-dom';
 
 const FILTERS = ['all', 'building', 'testing', 'running', 'failed', 'rollback_in_progress', 'destroyed'];
 
@@ -33,12 +34,26 @@ function detectAnomalies(environments) {
 
 export default function Environments() {
   const { environments, stats, logs, createEnvironment, userRole, destroyEnvironment } = useEnvironments();
+  const { repositories, selectedRepo, selectedBranch, selectRepo } = useRepo();
+  const [searchParams] = useSearchParams();
+  const navigate = useNavigate();
   const [filter, setFilter] = useState('all');
   const [search, setSearch] = useState('');
   const [showCreate, setShowCreate] = useState(false);
-  const [selectedBranch, setSelectedBranch] = useState(BRANCHES[0]);
+  const [envName, setEnvName] = useState('');
+  const [branch, setBranch] = useState(selectedBranch);
   const [ttlPreset, setTtlPreset] = useState('standard');
+  const [deployProfile, setDeployProfile] = useState('standard');
+  const [memory, setMemory] = useState('512Mi');
   const [selectedEnv, setSelectedEnv] = useState(null);
+
+  React.useEffect(() => {
+    setBranch(selectedBranch);
+  }, [selectedBranch]);
+
+  React.useEffect(() => {
+    if (searchParams.get('create') === '1') setShowCreate(true);
+  }, [searchParams]);
 
   const anomalies = useMemo(() => detectAnomalies(environments), [environments]);
 
@@ -46,15 +61,23 @@ export default function Environments() {
     () => environments.filter((e) => {
       const matchesFilter = filter === 'all' || e.status === filter;
       const q = search.toLowerCase();
-      const matchesSearch = !q || e.branch.toLowerCase().includes(q) || e.commitId.toLowerCase().includes(q) || e.id.toLowerCase().includes(q);
+      const matchesSearch = !q || e.branch.toLowerCase().includes(q) || e.commitId.toLowerCase().includes(q) || e.id.toLowerCase().includes(q) || (e.name || '').toLowerCase().includes(q);
       return matchesFilter && matchesSearch;
     }),
     [environments, filter, search],
   );
 
   const handleCreate = () => {
-    createEnvironment(selectedBranch, ttlPreset);
+    createEnvironment({
+      name: envName.trim() || `preview-${branch}`,
+      branch,
+      repository: selectedRepo?.fullName || 'bhoomiijain/EnvPro',
+      ttlPreset,
+      deployConfig: { replicas: 1, memory, profile: deployProfile },
+    });
     setShowCreate(false);
+    setEnvName('');
+    navigate('/pipeline');
   };
 
   const handleBulkCleanup = () => {
@@ -84,9 +107,24 @@ export default function Environments() {
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="glass-card create-panel">
             <div className="create-grid">
               <label>
+                Environment name
+                <input value={envName} onChange={(e) => setEnvName(e.target.value)} placeholder={`preview-${branch}`} />
+              </label>
+              <label>
+                Repository
+                <select
+                  value={selectedRepo?.id || ''}
+                  onChange={(e) => selectRepo(e.target.value)}
+                >
+                  {repositories.map((r) => (
+                    <option key={r.id} value={r.id}>{r.fullName}</option>
+                  ))}
+                </select>
+              </label>
+              <label>
                 Branch
-                <select value={selectedBranch} onChange={(e) => setSelectedBranch(e.target.value)}>
-                  {BRANCHES.map((b) => <option key={b} value={b}>{b}</option>)}
+                <select value={branch} onChange={(e) => setBranch(e.target.value)}>
+                  {(selectedRepo?.branches || [branch]).map((b) => <option key={b} value={b}>{b}</option>)}
                 </select>
               </label>
               <label>
@@ -95,6 +133,22 @@ export default function Environments() {
                   <option value="quick">15 minutes</option>
                   <option value="standard">1 hour</option>
                   <option value="post_test">Post-test fallback</option>
+                </select>
+              </label>
+              <label>
+                Deploy profile
+                <select value={deployProfile} onChange={(e) => setDeployProfile(e.target.value)}>
+                  <option value="standard">Standard</option>
+                  <option value="performance">Performance</option>
+                  <option value="minimal">Minimal</option>
+                </select>
+              </label>
+              <label>
+                Memory limit
+                <select value={memory} onChange={(e) => setMemory(e.target.value)}>
+                  <option value="256Mi">256Mi</option>
+                  <option value="512Mi">512Mi</option>
+                  <option value="1Gi">1Gi</option>
                 </select>
               </label>
               <div className="create-actions">

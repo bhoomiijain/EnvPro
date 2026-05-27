@@ -1,31 +1,33 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
 import {
   LayoutDashboard, Container, GitBranch, Network, ScrollText, History,
-  Settings, Zap, Activity, ChevronRight
+  Settings, Zap, ChevronRight, FolderGit2, Sparkles,
 } from 'lucide-react';
 import { useEnvironments } from '../context/EnvironmentContext';
 
 const NAV = [
-  { to: '/dashboard',     icon: LayoutDashboard, label: 'Dashboard',      section: 'OVERVIEW' },
-  { to: '/environments',  icon: Container,       label: 'Environments',   section: 'OVERVIEW' },
-  { to: '/pipeline',      icon: GitBranch,       label: 'CI/CD Pipeline', section: 'DEVOPS' },
-  { to: '/architecture',  icon: Network,         label: 'Architecture',   section: 'DEVOPS' },
-  { to: '/logs',          icon: ScrollText,      label: 'Logs & Monitor', section: 'DEVOPS' },
-  { to: '/history',       icon: History,         label: 'Deploy History', section: 'DEVOPS' },
+  { to: '/dashboard', icon: LayoutDashboard, label: 'Dashboard', section: 'OVERVIEW' },
+  { to: '/repositories', icon: FolderGit2, label: 'Repositories', section: 'OVERVIEW' },
+  { to: '/environments', icon: Container, label: 'Environments', section: 'OVERVIEW' },
+  { to: '/pipeline', icon: GitBranch, label: 'CI/CD Pipeline', section: 'DEVOPS' },
+  { to: '/architecture', icon: Network, label: 'Architecture', section: 'DEVOPS' },
+  { to: '/logs', icon: ScrollText, label: 'Logs & Monitor', section: 'DEVOPS' },
+  { to: '/history', icon: History, label: 'Deploy History', section: 'DEVOPS' },
+  { to: '/insights', icon: Sparkles, label: 'Insights', section: 'ANALYTICS' },
 ];
 
 export default function Sidebar() {
   const { stats } = useEnvironments();
   const location = useLocation();
-  const [currentPage, setCurrentPage] = useState('');
+  const [, setCurrentPage] = useState('');
 
   useEffect(() => {
-    const match = NAV.find(n => location.pathname.startsWith(n.to));
+    const match = NAV.find((n) => location.pathname.startsWith(n.to));
     setCurrentPage(match?.label || '');
   }, [location]);
 
-  const sections = [...new Set(NAV.map(n => n.section))];
+  const sections = [...new Set(NAV.map((n) => n.section))];
 
   return (
     <aside className="sidebar">
@@ -40,10 +42,10 @@ export default function Sidebar() {
       </div>
 
       <nav className="sidebar-nav">
-        {sections.map(section => (
+        {sections.map((section) => (
           <div key={section}>
             <div className="nav-section-label">{section}</div>
-            {NAV.filter(n => n.section === section).map(({ to, icon: Icon, label }) => (
+            {NAV.filter((n) => n.section === section).map(({ to, icon: Icon, label }) => (
               <NavLink key={to} to={to} className={({ isActive }) => `nav-item${isActive ? ' active' : ''}`}>
                 <Icon size={16} />
                 {label}
@@ -60,10 +62,10 @@ export default function Sidebar() {
 
         <div style={{ marginTop: 'auto' }}>
           <div className="nav-section-label">SYSTEM</div>
-          <div className="nav-item">
+          <NavLink to="/settings" className={({ isActive }) => `nav-item${isActive ? ' active' : ''}`}>
             <Settings size={16} />
             Settings
-          </div>
+          </NavLink>
         </div>
       </nav>
 

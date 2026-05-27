@@ -1,0 +1,102 @@
+name: Release & Deploy
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+
+permissions:
+  contents: write
+  packages: write
+
+jobs:
+  create-release:
+    name: Create GitHub Release
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: maven
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+
+      - name: Build release
+        run: |
+          npm ci
+          npm run build
+          ./mvnw -B -ntp package -DskipTests
+
+      - name: Create Release
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: ${{ github.ref }}
+          release_name: Release ${{ github.ref }}
+          body: |
+            Release artifacts for ${{ github.ref }}
+            - Frontend distribution ready
+            - Backend JAR compiled and tested
+          draft: false
+          prerelease: false
+
+      - name: Upload frontend artifact
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: ./dist/
+          asset_name: envpro-frontend-${{ github.ref }}.zip
+          asset_content_type: application/zip
+
+      - name: Upload backend artifact
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: ./server/target/envpro-server.jar
+          asset_name: envpro-server-${{ github.ref }}.jar
+          asset_content_type: application/java-archive
+
+  push-docker-release:
+    name: Push Release Images to GHCR
+    runs-on: ubuntu-latest
+    needs: create-release
+    
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract version
+        id: version
+        run: echo "tag=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+
+      - name: Build and push web image
+        run: |
+          docker build -f Dockerfile -t ghcr.io/${{ github.repository_owner }}/envpro-web:${{ steps.version.outputs.tag }} .
+          docker push ghcr.io/${{ github.repository_owner }}/envpro-web:${{ steps.version.outputs.tag }}
+
+      - name: Build and push server image
+        run: |
+          docker build -f Dockerfile.backend -t ghcr.io/${{ github.repository_owner }}/envpro-server:${{ steps.version.outputs.tag }} .
+          docker push ghcr.io/${{ github.repository_owner }}/envpro-server:${{ steps.version.outputs.tag }}

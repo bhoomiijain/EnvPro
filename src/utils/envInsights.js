@@ -94,6 +94,35 @@ export function generateDeploymentInsights(environments = []) {
     });
   }
 
+  const expiringSoon = environments.filter((e) => e.status === 'running' && e.countdown_seconds < 600).length;
+  if (expiringSoon > 0) {
+    insights.push({
+      icon: '🗑',
+      type: 'cleanup-soon',
+      text: `${expiringSoon} environment(s) nearing TTL — cleanup will free resources automatically`,
+      color: '#4f9eff',
+    });
+  }
+
+  const destroyed = environments.filter((e) => e.status === 'destroyed').length;
+  if (destroyed > 0 && environments.length > 3) {
+    insights.push({
+      icon: '✓',
+      type: 'cleanup-efficiency',
+      text: `${destroyed} environments cleaned up — resource optimization active`,
+      color: '#00ff88',
+    });
+  }
+
+  if (runningCount > 0 && failedCount === 0) {
+    insights.push({
+      icon: '📈',
+      type: 'success-trend',
+      text: `${runningCount} healthy deployment(s) — success trend stable`,
+      color: '#00ff88',
+    });
+  }
+
   return insights;
 }
 

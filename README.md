@@ -1,5 +1,8 @@
 # 🚀 EnvPro — Dynamic Environment Provisioning System
 
+[![Maven Build](https://github.com/bhoomiijain/EnvPro/actions/workflows/maven.yml/badge.svg)](https://github.com/bhoomiijain/EnvPro/actions/workflows/maven.yml)
+[![Docker Build](https://github.com/bhoomiijain/EnvPro/actions/workflows/docker.yml/badge.svg)](https://github.com/bhoomiijain/EnvPro/actions/workflows/docker.yml)
+
 EnvPro is a modern DevOps orchestration platform that simulates dynamic ephemeral environment provisioning using CI/CD workflows, Docker containerization, and intelligent lifecycle management.
 
 The project is designed to demonstrate real-world DevOps concepts such as isolated preview environments, automated deployment pipelines, rollback workflows, infrastructure monitoring, resource optimization, and environment cleanup automation.
@@ -452,7 +455,7 @@ If occupied, Vite automatically switches to:
 
 ---
 
-## 🏗️ Production Build
+## 🏗️ Production Build (npm)
 
 ```bash
 npm run build
@@ -461,37 +464,68 @@ npm run preview
 
 ---
 
+## ☕ Full stack build (Maven + Node)
+
+Builds the React dashboard and Spring Boot API, runs unit tests:
+
+```bash
+./mvnw verify
+```
+
+On Windows: `mvnw.cmd verify`
+
+If `npm` fails with `EPERM` on `node_modules/.vite`, stop `npm run dev` first, then retry. Maven uses `npm install` (not `npm ci`) locally to avoid deleting locked Vite cache folders.
+
+Artifacts: `dist/` (frontend), `server/target/envpro-server.jar` (API).
+
+---
+
 # 🐳 Docker Setup
 
-## Build Docker Image
+## Build frontend image only
 
 ```bash
-docker build -t envpro .
+docker build -f Dockerfile -t envpro-web .
+docker run --rm -p 8081:80 envpro-web
 ```
+
+Open http://localhost:8081
 
 ---
 
-## Run Docker Container
+## Run full stack (Docker Compose)
+
+PostgreSQL + Spring Boot API + Nginx frontend:
 
 ```bash
-docker run -p 5173:5173 envpro
+docker compose up --build
 ```
+
+| Service   | URL |
+|-----------|-----|
+| Web UI    | http://localhost:8081 |
+| API       | http://localhost:8888 |
+| API health| http://localhost:8888/actuator/health |
+| Postgres  | localhost:5432 |
 
 ---
 
-## Run Docker Compose
+# 🔄 CI/CD on GitHub Actions
 
-```bash
-docker compose up
-```
+Workflows in `.github/workflows/`:
+
+| Workflow | File | What it does |
+|----------|------|----------------|
+| **Maven Build** | `maven.yml` | `mvn verify` — npm build + Spring Boot compile & tests |
+| **Docker Build** | `docker.yml` | `docker compose build`, smoke tests, GHCR push on `main` |
 
 ---
 
 # 🔄 Planned Real DevOps Integrations
 
 ## Upcoming Backend Features
-- Spring Boot API integration
-- PostgreSQL persistence
+- REST API wired to the React dashboard
+- PostgreSQL persistence (schema + Flyway ready)
 - WebSocket real-time events
 - Actual Docker provisioning
 - GitHub webhook triggers
@@ -513,12 +547,10 @@ docker compose up
 
 # ⚠️ Current Limitations
 
-- Uses simulated infrastructure behavior
-- No real Docker execution yet
-- No persistent database connection
-- No authentication layer
-- Logs are simulation-based
-- Rollback is visual/demo-based
+- Dashboard uses simulated environment lifecycle (UI demo layer)
+- GitHub repository connection is mock data (not live GitHub OAuth)
+- Ephemeral environments are not provisioned on a real cluster yet
+- Backend API is scaffolded; primary UX runs in the browser today
 
 ---
 

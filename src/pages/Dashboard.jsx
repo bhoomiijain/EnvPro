@@ -13,7 +13,10 @@ import {
   Cell,
 } from 'recharts';
 import { useEnvironments } from '../context/EnvironmentContext';
+import { useRepo } from '../context/RepoContext';
 import { analyticsData, recentCommits } from '../data/mockData';
+import { generateDeploymentInsights } from '../utils/envInsights';
+import WorkflowGuide from '../components/WorkflowGuide';
 
 const laneOrder = ['building', 'testing', 'running', 'failed', 'destroyed'];
 const laneColor = {
@@ -25,8 +28,11 @@ const laneColor = {
 };
 
 export default function Dashboard() {
-  const { stats, environments } = useEnvironments();
+  const { stats, environments, systemMetrics, pipelineRuns } = useEnvironments();
+  const { selectedRepo, selectedBranch } = useRepo();
   const [isNarrow, setIsNarrow] = useState(false);
+  const dynamicInsights = React.useMemo(() => generateDeploymentInsights(environments), [environments]);
+  const runningPipelines = pipelineRuns.filter((r) => r.stages.some((s) => s.status === 'running')).length;
 
   useEffect(() => {
     const mq = window.matchMedia('(max-width: 1100px)');
@@ -49,7 +55,11 @@ export default function Dashboard() {
   return (
     <div style={{ maxWidth: 1400, margin: '0 auto' }}>
       <h1 className="section-title"><span className="gradient-text">Orchestration Dashboard</span></h1>
-      <p className="env-subtitle">Professional dark DevOps view of ephemeral environments and lifecycle health</p>
+      <p className="env-subtitle">
+        Professional dark DevOps view — {selectedRepo?.fullName || 'No repo'} / {selectedBranch} · {runningPipelines} active pipeline(s)
+      </p>
+
+      <WorkflowGuide />
 
       <div className="stat-grid" style={{ marginTop: 16 }}>
         <div className="glass-card stat-card"><div className="stat-card-label">Active</div><div className="stat-card-value" style={{ color: 'var(--accent-blue)' }}>{stats.active}</div></div>
@@ -178,30 +188,30 @@ export default function Dashboard() {
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
             <div style={{ padding: 12, borderRadius: 8, background: 'rgba(79,158,255,0.08)', border: '1px solid rgba(79,158,255,0.2)' }}>
               <div style={{ fontSize: 10, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 6 }}>CPU Usage</div>
-              <div style={{ fontSize: 20, fontWeight: 800, color: 'var(--accent-blue)' }}>37%</div>
+              <div style={{ fontSize: 20, fontWeight: 800, color: 'var(--accent-blue)' }}>{systemMetrics.cpu}%</div>
               <div style={{ marginTop: 4, height: 4, background: 'rgba(79,158,255,0.2)', borderRadius: 2, overflow: 'hidden' }}>
-                <div style={{ height: '100%', width: '37%', background: 'var(--accent-blue)' }} />
+                <div style={{ height: '100%', width: `${systemMetrics.cpu}%`, background: 'var(--accent-blue)' }} />
               </div>
             </div>
             <div style={{ padding: 12, borderRadius: 8, background: 'rgba(0,255,136,0.08)', border: '1px solid rgba(0,255,136,0.2)' }}>
               <div style={{ fontSize: 10, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 6 }}>Memory Usage</div>
-              <div style={{ fontSize: 20, fontWeight: 800, color: 'var(--accent-green)' }}>61%</div>
+              <div style={{ fontSize: 20, fontWeight: 800, color: 'var(--accent-green)' }}>{systemMetrics.memory}%</div>
               <div style={{ marginTop: 4, height: 4, background: 'rgba(0,255,136,0.2)', borderRadius: 2, overflow: 'hidden' }}>
-                <div style={{ height: '100%', width: '61%', background: 'var(--accent-green)' }} />
+                <div style={{ height: '100%', width: `${systemMetrics.memory}%`, background: 'var(--accent-green)' }} />
               </div>
             </div>
             <div style={{ padding: 12, borderRadius: 8, background: 'rgba(255,193,7,0.08)', border: '1px solid rgba(255,193,7,0.2)' }}>
               <div style={{ fontSize: 10, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 6 }}>Disk Usage</div>
-              <div style={{ fontSize: 20, fontWeight: 800, color: '#ffc107' }}>44%</div>
+              <div style={{ fontSize: 20, fontWeight: 800, color: '#ffc107' }}>{systemMetrics.disk}%</div>
               <div style={{ marginTop: 4, height: 4, background: 'rgba(255,193,7,0.2)', borderRadius: 2, overflow: 'hidden' }}>
-                <div style={{ height: '100%', width: '44%', background: '#ffc107' }} />
+                <div style={{ height: '100%', width: `${systemMetrics.disk}%`, background: '#ffc107' }} />
               </div>
             </div>
             <div style={{ padding: 12, borderRadius: 8, background: 'rgba(255,77,109,0.08)', border: '1px solid rgba(255,77,109,0.2)' }}>
               <div style={{ fontSize: 10, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 6 }}>Network I/O</div>
-              <div style={{ fontSize: 20, fontWeight: 800, color: 'var(--accent-red)' }}>28%</div>
+              <div style={{ fontSize: 20, fontWeight: 800, color: 'var(--accent-red)' }}>{systemMetrics.network}%</div>
               <div style={{ marginTop: 4, height: 4, background: 'rgba(255,77,109,0.2)', borderRadius: 2, overflow: 'hidden' }}>
-                <div style={{ height: '100%', width: '28%', background: 'var(--accent-red)' }} />
+                <div style={{ height: '100%', width: `${systemMetrics.network}%`, background: 'var(--accent-red)' }} />
               </div>
             </div>
           </div>
@@ -210,27 +220,27 @@ export default function Dashboard() {
         <motion.div className="glass-card" style={{ padding: 18 }} initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
           <div className="section-title" style={{ marginBottom: 12 }}>AI Insights</div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-            <div style={{ padding: 10, borderRadius: 8, background: 'rgba(255,193,7,0.08)', border: '1px solid rgba(255,193,7,0.2)', display: 'flex', gap: 10 }}>
-              <span style={{ fontSize: 16, marginTop: 2 }}>⚠️</span>
-              <div style={{ flex: 1 }}>
-                <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-primary)' }}>High memory usage detected</div>
-                <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 2 }}>2 environments above 80% threshold</div>
+            {dynamicInsights.length === 0 && (
+              <div style={{ padding: 10, fontSize: 11, color: 'var(--text-muted)' }}>
+                {systemMetrics.activeContainers} containers · {systemMetrics.successRate}% deployment success rate
               </div>
-            </div>
-            <div style={{ padding: 10, borderRadius: 8, background: 'rgba(0,255,136,0.08)', border: '1px solid rgba(0,255,136,0.2)', display: 'flex', gap: 10 }}>
-              <span style={{ fontSize: 16, marginTop: 2 }}>✓</span>
-              <div style={{ flex: 1 }}>
-                <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-primary)' }}>Build time decreased by 23%</div>
-                <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 2 }}>compared to previous week</div>
+            )}
+            {dynamicInsights.map((item) => (
+              <div
+                key={item.type}
+                style={{
+                  padding: 10,
+                  borderRadius: 8,
+                  border: `1px solid ${item.color}40`,
+                  background: `${item.color}14`,
+                  display: 'flex',
+                  gap: 10,
+                }}
+              >
+                <span style={{ fontSize: 16 }}>{item.icon}</span>
+                <div style={{ fontSize: 11, fontWeight: 600, color: item.color }}>{item.text}</div>
               </div>
-            </div>
-            <div style={{ padding: 10, borderRadius: 8, background: 'rgba(79,158,255,0.08)', border: '1px solid rgba(79,158,255,0.2)', display: 'flex', gap: 10 }}>
-              <span style={{ fontSize: 16, marginTop: 2 }}>📊</span>
-              <div style={{ flex: 1 }}>
-                <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-primary)' }}>3 environments ready for cleanup</div>
-                <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 2 }}>TTL expired, freeing resources</div>
-              </div>
-            </div>
+            ))}
           </div>
         </motion.div>
       </div>
